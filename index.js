@@ -4,6 +4,7 @@ import {
   addDoc,
   collection,
   getDocs,
+  getDoc,
   deleteDoc,
   doc,
   updateDoc,
@@ -14,75 +15,140 @@ const firebaseConfig = {
   authDomain: "fd-crud-5ebd0.firebaseapp.com",
   databaseURL: "https://fd-crud-5ebd0-default-rtdb.firebaseio.com",
   projectId: "fd-crud-5ebd0",
-  storageBucket: "fd-crud-5ebd0.firebasestorage.app",
+  storageBucket: "fd-crud-5ebd0.appspot.com", // FIXED typo here
   messagingSenderId: "295703733815",
   appId: "1:295703733815:web:2d72c4026bc569d41d81b2",
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const use = document.querySelector(".btn");
+
+const use = document.querySelector(".sub");
 const h1 = document.querySelector(".h1");
 const result = document.querySelector(".result");
+const updatebtn = document.querySelector(".update");
+const Addbtn = document.querySelector(".Addbtn");
+const inputName = document.querySelector(".input_1");
+const inputAge = document.querySelector(".input_2");
 
-// Fetch and display all users
+let currentId = null;
+
+// Display users
 const displayUsers = async () => {
   const dataget = await getDocs(collection(db, "users"));
   const users = dataget.docs.map((doc) => ({
     ...doc.data(),
-    id: doc.id, // Add the document ID
+    id: doc.id,
   }));
 
-  // Clear the result before adding new data
   result.innerHTML = "";
-
-  h1.innerHTML = `Member Count : ${users.length}`;
+  h1.innerHTML = `Member Count - <ion-icon name="people-circle-outline"></ion-icon> - ${users.length}`;
 
   users.forEach((user) => {
     result.innerHTML += `
       <tr id="${user.id}" class="table-secondary">
         <td>${user.Name}</td>
         <td>${user.Age}</td>
-        <td><button class="edit-btn btn btn-dark btn-sm"> Edit </button></td>
-        <td><button class="del-btn btn btn-danger btn-sm"> Delete </button></td>
+        <td><button class="edit-btn btn btn-dark btn-sm"><ion-icon name="create-outline"></ion-icon></button></td>
+        <td><button class="del-btn btn btn-danger btn-sm"><ion-icon name="trash-outline"></ion-icon></button></td>
       </tr>`;
   });
 
-  // Add event listeners for delete buttons
-  const deleteButtons = document.querySelectorAll(".del-btn");
-  deleteButtons.forEach((button) => {
+  // Delete user
+  document.querySelectorAll(".del-btn").forEach((button) => {
     button.addEventListener("click", async (event) => {
-      const docId = event.target.closest("tr").id; // Get the ID of the row (document)
-      await deleteDoc(doc(db, "users", docId)); // Delete the document from Firestore
-      displayUsers(); // Refresh the list after deletion
+      const docId = event.target.closest("tr").id;
+      Swal.fire({
+        title: "Are you sure?",
+        text: "You won't be able to revert this!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Yes, delete it!"
+      }).then( async (result) => {
+        if (result.isConfirmed) {
+          await deleteDoc(doc(db, "users", docId));
+          displayUsers();
+          Swal.fire({
+            title: "Deleted!",
+            text: "Your file has been deleted.",
+            icon: "success"
+          });
+        }
+      });
+    });
+  });
+
+  // Edit user
+  document.querySelectorAll(".edit-btn").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      updatebtn.style.display = "block";
+      Addbtn.style.display = "none";
+
+      const editId = event.target.closest("tr").id;
+      const docSnap = await getDoc(doc(db, "users", editId));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        inputName.value = data.Name;
+        inputAge.value = data.Age;
+        currentId = editId;
+      }
     });
   });
 };
 
-// Initial fetch and display of users
 displayUsers();
 
-// const editbtn = document.querySelector(".edit-btn");
-//   editbtn.addEventListener("click", async (event) => {
-//     const docEId = event.target.closest("tr").id;
-//     console.log(docEId);
-//   });
-
-// Add new user
+// Add user
 use.addEventListener("click", async () => {
-  const Name = document.querySelector(".input_1");
-  const Age = document.querySelector(".input_2");
+  const Names = inputName.value.trim();
+  const Ages = inputAge.value.trim();
 
-  // Add new user data to Firestore
-  await addDoc(collection(db, "users"), {
-    Name: Name.value,
-    Age: Age.value,
+  if (!Names || !Ages) {
+    Swal.fire("Please Fill Information", "", "warning");
+    return;
+  }
+
+  Swal.fire({
+    title: "Please Wait",
+    text: "Uploading...",
+    timer: 1500,
+    timerProgressBar: true,
+    didOpen: () => Swal.showLoading(),
   });
 
-  // Clear input fields
-  Name.value = "";
-  Age.value = "";
+  await addDoc(collection(db, "users"), {
+    Name: Names,
+    Age: Ages,
+  });
 
-  // Refresh the user list
+  inputName.value = "";
+  inputAge.value = "";
+  displayUsers();
+});
+
+// Update user
+updatebtn.addEventListener("click", async () => {
+  const newName = inputName.value.trim();
+  const newAge = inputAge.value.trim();
+
+  if (!newName || !newAge) {
+    Swal.fire("Please fill in both fields", "", "warning");
+    return;
+  }
+
+  await updateDoc(doc(db, "users", currentId), {
+    Name: newName,
+    Age: newAge,
+  });
+
+  inputName.value = "";
+  inputAge.value = "";
+  currentId = null;
+  updatebtn.style.display = "none";
+  Addbtn.style.display = "block";
+
+  Swal.fire("Member Updated!", "", "success");
   displayUsers();
 });
